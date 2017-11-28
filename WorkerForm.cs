@@ -19,7 +19,7 @@ namespace com.clusterrr.hakchi_gui
 {
     public partial class WorkerForm : Form
     {
-        public enum Tasks { DumpKernel, FlashKernel, DumpNand, FlashNand, DumpNandB, Memboot, UploadGames, DownloadCovers, AddGames, CompressGames, DecompressGames, DeleteGames };
+        public enum Tasks { DumpKernel, FlashKernel, DumpNand, FlashNand, DumpNandB, DumpNandC, FlashNandC, Memboot, UploadGames, DownloadCovers, AddGames, CompressGames, DecompressGames, DeleteGames };
         public Tasks Task;
         //public string UBootDump;
         public static string KernelDumpPath
@@ -83,7 +83,25 @@ namespace com.clusterrr.hakchi_gui
         string selectedFile = null;
         public NesMiniApplication[] addedApplications;
         public static int NandCTotal, NandCUsed, NandCFree, WritedGamesSize, SaveStatesSize;
-        public const long ReservedMemory = 10;
+        public static bool ExternalSaves = false;
+        public static long ReservedMemory
+        {
+            get
+            {
+                if (ExternalSaves)
+                    return 5;
+                switch (ConfigIni.ConsoleType)
+                {
+                    default:
+                    case MainForm.ConsoleType.NES:
+                    case MainForm.ConsoleType.Famicom:
+                        return 10;
+                    case MainForm.ConsoleType.SNES:
+                    case MainForm.ConsoleType.SuperFamicom:
+                        return 30;
+                }
+            }
+        }
 
         public WorkerForm(MainForm parentForm)
         {
@@ -134,9 +152,10 @@ namespace com.clusterrr.hakchi_gui
             correctKernels[MainForm.ConsoleType.SuperFamicom] = new string[]
             {
                 "632e179db63d9bcd42281f776a030c14", // Super Famicom Mini (JAP)
+                "c3378edfc1b96a5268a066d5fbe12d89", // Super Famicom Mini (JAP)
             };
             correctKeys[MainForm.ConsoleType.NES] =
-                correctKeys[MainForm.ConsoleType.Famicom] = 
+                correctKeys[MainForm.ConsoleType.Famicom] =
                 new string[] { "bb8f49e0ae5acc8d5f9b7fa40efbd3e7" };
             correctKeys[MainForm.ConsoleType.SNES] =
                 correctKeys[MainForm.ConsoleType.SuperFamicom] =
@@ -171,7 +190,8 @@ namespace com.clusterrr.hakchi_gui
                 if (!File.Exists(ubootPath)) throw new FileNotFoundException(ubootPath + " not found");
                 fel.Fes1Bin = File.ReadAllBytes(fes1Path);
                 fel.UBootBin = File.ReadAllBytes(ubootPath);
-                fel.Open(vid, pid);
+                if (!fel.Open(vid, pid))
+                    throw new FelException("Can't open device");
                 SetStatus(Resources.UploadingFes1);
                 fel.InitDram(true);
                 TaskbarProgress.SetState(this, TaskbarProgress.TaskbarStates.Normal);
@@ -267,7 +287,9 @@ namespace com.clusterrr.hakchi_gui
                         DoNandFlash();
                         break;
                     case Tasks.DumpNandB:
-                        DoNandBDump();
+                    case Tasks.DumpNandC:
+                    case Tasks.FlashNandC:
+                        DoPartitionDump(Task);
                         break;
                     case Tasks.UploadGames:
                         UploadGames();
@@ -297,7 +319,16 @@ namespace com.clusterrr.hakchi_gui
             catch (ThreadAbortException) { }
             catch (Exception ex)
             {
-                ShowError(ex);
+                if (ex.InnerException != null && !string.IsNullOrEmpty(ex.InnerException.Message))
+                {
+                    Debug.WriteLine(ex.InnerException.Message + ex.InnerException.StackTrace);
+                    ShowError(ex.InnerException);
+                }
+                else
+                {
+                    Debug.WriteLine(ex.Message + ex.StackTrace);
+                    ShowError(ex);
+                }
             }
             finally
             {
@@ -347,14 +378,14 @@ namespace com.clusterrr.hakchi_gui
             catch { }
         }
 
-        void ShowError(Exception ex, bool dontStop = false)
+        void ShowError(Exception ex, bool dontStop = false, string prefix = null)
         {
             if (Disposing) return;
             try
             {
                 if (InvokeRequired)
                 {
-                    Invoke(new Action<Exception, bool>(ShowError), new object[] { ex, dontStop });
+                    Invoke(new Action<Exception, bool, string>(ShowError), new object[] { ex, dontStop, prefix });
                     return;
                 }
                 TaskbarProgress.SetState(this, TaskbarProgress.TaskbarStates.Error);
@@ -366,7 +397,7 @@ namespace com.clusterrr.hakchi_gui
                 //if (ex is MadWizard.WinUSBNet.USBException) // TODO
                 //    MessageBox.Show(this, message + "\r\n" + Resources.PleaseTryAgainUSB, Resources.Error, MessageBoxButtons.OK, MessageBoxIcon.Error);
                 //else
-                MessageBox.Show(this, message, Resources.Error, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, (!string.IsNullOrEmpty(prefix) ? (prefix + ": ") : "") + message, Resources.Error, MessageBoxButtons.OK, MessageBoxIcon.Error);
                 TaskbarProgress.SetState(this, TaskbarProgress.TaskbarStates.Normal);
                 if (!dontStop)
                 {
@@ -664,10 +695,10 @@ namespace com.clusterrr.hakchi_gui
             SetProgress(maxProgress, maxProgress);
         }
 
-        public void DoNandBDump()
+        public void DoPartitionDump(Tasks task)
         {
             int progress = 0;
-            int maxProgress = 30;
+            int maxProgress = 500;
             var clovershell = MainForm.Clovershell;
             try
             {
@@ -680,21 +711,61 @@ namespace com.clusterrr.hakchi_gui
                 SetProgress(progress, maxProgress);
 
                 ShowSplashScreen();
+                clovershell.ExecuteSimple("sync");
 
-                var nandbSize = int.Parse(clovershell.ExecuteSimple("df / | tail -n 1 | awk '{ print $2 }'"));
-                maxProgress = 5 + nandbSize / 1024;
+                var partitionSize = 300 * 1024;
+                try
+                {
+                    switch (task)
+                    {
+                        case Tasks.DumpNandB:
+                            partitionSize = int.Parse(clovershell.ExecuteSimple("df /dev/mapper/root-crypt | tail -n 1 | awk '{ print $2 }'"));
+                            break;
+                        case Tasks.DumpNandC:
+                        case Tasks.FlashNandC:
+                            partitionSize = int.Parse(clovershell.ExecuteSimple("df /dev/nandc | tail -n 1 | awk '{ print $2 }'"));
+                            break;
+                    }
+                }
+                catch { }
+                maxProgress = 5 + (int)Math.Ceiling(partitionSize / 1024.0 * 1.05);
                 SetProgress(progress, maxProgress);
 
-                SetStatus(Resources.DumpingNand);
-                using (var file = new TrackableFileStream(NandDump, FileMode.Create))
+                if (task != Tasks.FlashNandC)
                 {
-                    file.OnProgress += delegate (long Position, long Length)
+                    SetStatus(Resources.DumpingNand);
+                    using (var file = new TrackableFileStream(NandDump, FileMode.Create))
                     {
-                        progress = (int)(5 + Position / 1024);
-                        SetProgress(progress, maxProgress);
-                    };
-                    clovershell.Execute("dd if=/dev/mapper/root-crypt", null, file);
-                    file.Close();
+                        file.OnProgress += delegate (long Position, long Length)
+                        {
+                            progress = (int)(5 + Position / 1024 / 1024);
+                            SetProgress(progress, maxProgress);
+                        };
+                        switch (task)
+                        {
+                            case Tasks.DumpNandB:
+                                clovershell.Execute("dd if=/dev/mapper/root-crypt", null, file);
+                                break;
+                            case Tasks.DumpNandC:
+                                clovershell.Execute("dd if=/dev/nandc", null, file);
+                                break;
+                        }
+                        file.Close();
+                    }
+                }
+                else
+                {
+                    SetStatus(Resources.FlashingNand);
+                    using (var file = new TrackableFileStream(NandDump, FileMode.Open))
+                    {
+                        file.OnProgress += delegate (long Position, long Length)
+                        {
+                            progress = (int)(5 + Position / 1024 / 1024);
+                            SetProgress(progress, maxProgress);
+                        };
+                        clovershell.Execute("dd of=/dev/nandc", file);
+                        file.Close();
+                    }
                 }
 
                 SetStatus(Resources.Done);
@@ -720,6 +791,7 @@ namespace com.clusterrr.hakchi_gui
         {
             var clovershell = MainForm.Clovershell;
             var nandc = clovershell.ExecuteSimple("df /dev/nandc | tail -n 1 | awk '{ print $2 \" | \" $3 \" | \" $4 }'", 500, true).Split('|');
+            ExternalSaves = clovershell.ExecuteSimple("mount | grep /var/lib/clover").Trim().Length > 0;
             WritedGamesSize = int.Parse(clovershell.ExecuteSimple("mkdir -p /var/lib/hakchi/rootfs/usr/share/games/ && du -s /var/lib/hakchi/rootfs/usr/share/games/ | awk '{ print $1 }'", 1000, true)) * 1024;
             SaveStatesSize = int.Parse(clovershell.ExecuteSimple("mkdir -p /var/lib/clover/profiles/0/ && du -s /var/lib/clover/profiles/0/ | awk '{ print $1 }'", 1000, true)) * 1024;
             NandCTotal = int.Parse(nandc[0]) * 1024;
@@ -754,6 +826,7 @@ namespace com.clusterrr.hakchi_gui
             string gamesPath = NesMiniApplication.GamesCloverPath;
             const string rootFsPath = "/var/lib/hakchi/rootfs";
             const string installPath = "/var/lib/hakchi";
+            const string squashFsPath = "/var/lib/hakchi/squashfs";
             int progress = 0;
             int maxProgress = 400;
             if (Games == null || Games.Count == 0)
@@ -784,6 +857,10 @@ namespace com.clusterrr.hakchi_gui
                 SetProgress(progress, maxProgress);
 
                 ShowSplashScreen();
+                UpdateRootfs();
+                var squashFsMount = clovershell.ExecuteSimple($"mount | grep {squashFsPath}", 3000, false);
+                if (string.IsNullOrEmpty(squashFsMount))
+                    clovershell.ExecuteSimple($"mkdir -p {squashFsPath} && mount /dev/mapper/root-crypt {squashFsPath}", 3000, true);
 
                 SetStatus(Resources.BuildingFolders);
                 if (Directory.Exists(tempDirectory))
@@ -818,6 +895,12 @@ namespace com.clusterrr.hakchi_gui
                     SetProgress(progress, maxProgress);
 
                     clovershell.ExecuteSimple(string.Format("umount {0}", gamesPath));
+                    clovershell.ExecuteSimple($"mkdir -p \"{rootFsPath}{gamesPath}\"", 3000, true);
+                    if (ConfigIni.ConsoleType == MainForm.ConsoleType.NES || ConfigIni.ConsoleType == MainForm.ConsoleType.Famicom)
+                    {
+                        clovershell.ExecuteSimple($"[ -f \"{squashFsPath}{gamesPath}/title.fnt\" ] && [ ! -f \"{rootFsPath}{gamesPath}/title.fnt\" ] && cp -f \"{squashFsPath}{gamesPath}/title.fnt\" \"{rootFsPath}{gamesPath}\"/", 3000, false);
+                        clovershell.ExecuteSimple($"[ -f \"{squashFsPath}{gamesPath}/copyright.fnt\" ] && [ ! -f \"{rootFsPath}{gamesPath}/copyright.fnt\" ] && cp -f \"{squashFsPath}{gamesPath}/copyright.fnt\" \"{rootFsPath}{gamesPath}\"/", 3000, false);
+                    }
                     clovershell.ExecuteSimple(string.Format("rm -rf {0}{1}/CLV-* {0}{1}/??? {2}/menu", rootFsPath, gamesPath, installPath), 5000, true);
 
                     if (gamesTar.Length > 0)
@@ -834,6 +917,7 @@ namespace com.clusterrr.hakchi_gui
                 }
 
                 SetStatus(Resources.UploadingOriginalGames);
+                // Need to make sure that squashfs if mounted
                 startProgress = progress;
                 foreach (var originalCode in originalGames.Keys)
                 {
@@ -842,23 +926,30 @@ namespace com.clusterrr.hakchi_gui
                     {
                         case MainForm.ConsoleType.NES:
                         case MainForm.ConsoleType.Famicom:
-                            originalSyncCode = $"mkdir -p \"{rootFsPath}{gamesPath}/{originalGames[originalCode]}/{originalCode}/\" && " +
-                                $"rsync -ac \"{gamesPath}/{originalCode}/\" \"{rootFsPath}{gamesPath}/{originalGames[originalCode]}/{originalCode}/\" && " +
-                                $"sed -i -e 's/\\/usr\\/bin\\/clover-kachikachi/\\/bin\\/clover-kachikachi-wr/g' \"{rootFsPath}{gamesPath}/{originalGames[originalCode]}/{originalCode}/{originalCode}.desktop\"";
+                            originalSyncCode =
+                                $"src=\"{squashFsPath}{gamesPath}/{originalCode}\" && " +
+                                $"dst=\"{rootFsPath}{gamesPath}/{originalGames[originalCode]}/{originalCode}/\" && " +
+                                $"mkdir -p \"$dst\" && " +
+                                $"ln -s \"$src/{originalCode}.png\" \"$dst\" && " +
+                                $"ln -s \"$src/{originalCode}_small.png\" \"$dst\" && " +
+                                $"ln -s \"$src/{originalCode}.nes\" \"$dst\" && " +
+                                $"ln -s \"$src/autoplay/\" \"$dst/autoplay\" && " +
+                                $"ln -s \"$src/pixelart/\" \"$dst/pixelart\" && " +
+                                $"cp \"$src/{originalCode}.desktop\" \"$dst/{originalCode}.desktop\" && " +
+                                $"sed -i -e 's/\\/usr\\/bin\\/clover-kachikachi/\\/bin\\/clover-kachikachi-wr/g' \"$dst/{originalCode}.desktop\"";
                             break;
                         case MainForm.ConsoleType.SNES:
                         case MainForm.ConsoleType.SuperFamicom:
-                            originalSyncCode = $"mkdir -p \"{rootFsPath}{gamesPath}/{originalGames[originalCode]}/{originalCode}/\" && " +
-                                $"rsync -ac \"{gamesPath}/{originalCode}/\" \"{rootFsPath}{gamesPath}/{originalGames[originalCode]}/{originalCode}/\" && " +
-                                $"sed -i -e 's/\\/usr\\/bin\\/clover-canoe-shvc/\\/bin\\/clover-canoe-shvc-wr/g' \"{rootFsPath}{gamesPath}/{originalGames[originalCode]}/{originalCode}/{originalCode}.desktop\"";
-                            /*
-                            // With compression but very slow
-                            originalSyncCode = $"mkdir -p \"{rootFsPath}{gamesPath}/{originalGames[originalCode]}/{originalCode}/\" && " +
-                                $"rsync -ac \"{gamesPath}/{originalCode}/\" \"/tmp/{originalCode}/\" && " +
-                                $"gzip \"/tmp/{originalCode}/{originalCode}.sfrom\" && " +
-                                $"rsync -ac \"/tmp/{originalCode}/\" \"{rootFsPath}{gamesPath}/{originalGames[originalCode]}/{originalCode}/\" && " +
-                                $"rm -rf \"/tmp/{originalCode}/\"";
-                            */
+                            originalSyncCode =
+                                $"src=\"{squashFsPath}{gamesPath}/{originalCode}\" && " +
+                                $"dst=\"{rootFsPath}{gamesPath}/{originalGames[originalCode]}/{originalCode}/\" && " +
+                                $"mkdir -p \"$dst\" && " +
+                                $"ln -s \"$src/{originalCode}.png\" \"$dst\" && " +
+                                $"ln -s \"$src/{originalCode}_small.png\" \"$dst\" && " +
+                                $"ln -s \"$src/{originalCode}.sfrom\" \"$dst\" && " +
+                                $"ln -s \"$src/autoplay/\" \"$dst/autoplay\" && " +
+                                $"cp \"$src/{originalCode}.desktop\" \"$dst/{originalCode}.desktop\" && " +
+                                $"sed -i -e 's/\\/usr\\/bin\\/clover-canoe-shvc/\\/bin\\/clover-canoe-shvc-wr/g' \"$dst/{originalCode}.desktop\"";
                             break;
                     }
                     clovershell.ExecuteSimple(originalSyncCode, 30000, true);
@@ -886,9 +977,38 @@ namespace com.clusterrr.hakchi_gui
             }
         }
 
+        public void UpdateRootfs()
+        {
+            var modPath = Path.Combine(modsDirectory, Mod);
+            var garbage = Directory.GetFiles(modPath, "p0000_config", SearchOption.AllDirectories);
+            foreach (var file in garbage)
+            {
+                try
+                {
+                    File.Delete(file);
+                }
+                catch { }
+            }
+            var rootFsPathes = Directory.GetDirectories(modPath, "rootfs", SearchOption.AllDirectories);
+            if (rootFsPathes.Length == 0) return;
+            var rootFsPath = rootFsPathes[0];
+
+            using (var updateTar = new TarStream(rootFsPath))
+            {
+                if (updateTar.Length > 0)
+                {
+                    var clovershell = MainForm.Clovershell;
+                    clovershell.Execute("tar -xvC /", updateTar, null, null, 30000, true);
+                    clovershell.ExecuteSimple("chmod +x /bin/*", 3000, true);
+                    clovershell.ExecuteSimple("chmod +x /etc/init.d/*", 3000, true);
+                }
+            }
+        }
+
         public static void SyncConfig(Dictionary<string, string> Config, bool reboot = false)
         {
             var clovershell = MainForm.Clovershell;
+            const string configPath = "/etc/preinit.d/p0000_config";
 
             // Writing config
             var config = new MemoryStream();
@@ -900,8 +1020,7 @@ namespace com.clusterrr.hakchi_gui
                     config.Write(data, 0, data.Length);
                 }
             }
-            clovershell.Execute("cat > /tmp/config", config, null, null, 1000, true);
-            clovershell.Execute("temppath=/tmp && source /etc/preinit && script_init && source /tmp/config && source $preinit.d/pffff_config", null, null, null, 30000, true);
+            clovershell.Execute($"cat >> {configPath}", config, null, null, 3000, true);
             config.Dispose();
             if (reboot)
             {
@@ -916,9 +1035,11 @@ namespace com.clusterrr.hakchi_gui
         public static Image TakeScreenshot()
         {
             var clovershell = MainForm.Clovershell;
-            var screenshot = new Bitmap(1280, 720, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
+            var screenshot = new Bitmap(1280, 720, PixelFormat.Format24bppRgb);
             var rawStream = new MemoryStream();
+            clovershell.ExecuteSimple("hakchi uipause");
             clovershell.Execute("cat /dev/fb0", null, rawStream, null, 1000, true);
+            clovershell.ExecuteSimple("hakchi uiresume");
             var raw = rawStream.ToArray();
             BitmapData data = screenshot.LockBits(
                 new Rectangle(0, 0, screenshot.Width, screenshot.Height),
@@ -1153,7 +1274,7 @@ namespace com.clusterrr.hakchi_gui
                     stats.TotalGames++;
                     try
                     {
-                        if (gameCopy is ISupportsGameGenie && File.Exists((gameCopy as NesGame).GameGeniePath))
+                        if (gameCopy is ISupportsGameGenie && File.Exists(gameCopy.GameGeniePath))
                         {
                             bool compressed = false;
                             if (gameCopy.DecompressPossible().Count() > 0)
@@ -1164,7 +1285,7 @@ namespace com.clusterrr.hakchi_gui
                             (gameCopy as ISupportsGameGenie).ApplyGameGenie();
                             if (compressed)
                                 gameCopy.Compress();
-                            File.Delete((gameCopy as ISupportsGameGenie).GameGeniePath);
+                            File.Delete((gameCopy as NesMiniApplication).GameGeniePath);
                         }
                     }
                     catch (GameGenieFormatException ex)
@@ -1265,6 +1386,7 @@ namespace com.clusterrr.hakchi_gui
             addedApplications = null;
             NesMiniApplication.ParentForm = this;
             NesMiniApplication.NeedPatch = null;
+            NesMiniApplication.Need3rdPartyEmulator = null;
             NesGame.IgnoreMapper = null;
             SnesGame.NeedAutoDownloadCover = null;
             int count = 0;
@@ -1360,8 +1482,16 @@ namespace com.clusterrr.hakchi_gui
                 catch (Exception ex)
                 {
                     if (ex is ThreadAbortException) return null;
-                    Debug.WriteLine(ex.Message + ex.StackTrace);
-                    ShowError(ex, true);
+                    if (ex.InnerException != null && !string.IsNullOrEmpty(ex.InnerException.Message))
+                    {
+                        Debug.WriteLine(ex.InnerException.Message + ex.InnerException.StackTrace);
+                        ShowError(ex.InnerException, true, Path.GetFileName(sourceFileName));
+                    }
+                    else
+                    {
+                        Debug.WriteLine(ex.Message + ex.StackTrace);
+                        ShowError(ex, true, Path.GetFileName(sourceFileName));
+                    }
                 }
                 if (app != null)
                     apps.Add(app);

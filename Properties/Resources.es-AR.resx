@@ -88,14 +88,17 @@
   <data name="Congratulations">
     <value>¡Felicitaciones!</value>
   </data>
+  <data name="Cover">
+    <value>Arte de caja</value>
+  </data>
   <data name="CustomKernel">
     <value>Kernel personalizado</value>
   </data>
   <data name="CustomKernelQ">
-    <value>¿Querés flashear el kernel personalizado?</value>
+    <value>¿Querés flashear el custom kernel?</value>
   </data>
   <data name="CustomWarning">
-    <value>Necesitás flashear el kernel personalizado a tu NES/SNES Classic Edition. Sólo necesitás hacerlo una vez. ¿Querés continuar?</value>
+    <value>Necesitás flashear el custom kernel a tu NES/SNES Classic Edition. Sólo necesitás hacerlo una vez. ¿Querés continuar?</value>
   </data>
   <data name="Decompressing">
     <value>Descomprimiendo {0}…</value>
@@ -141,6 +144,9 @@
   </data>
   <data name="DownloadAllCoversTitle">
     <value>Descargando arte de caja para todos los juegos (¡Me siento con suerte!)</value>
+  </data>
+  <data name="DownloadCoverQ">
+    <value>¿Querés intentar descargar el arte de caja de "{0}"?</value>
   </data>
   <data name="DumpKernelQ">
     <value>¿Querés volcar el kernel?</value>
@@ -280,6 +286,9 @@
   <data name="NandDumped">
     <value>El volcado de la memoria NAND se hizo exitosamente.</value>
   </data>
+  <data name="Need3rdPartyEmulator">
+    <value>Epa, parece que "{0}" no va funcionar correctamente con el emulador original. ¿Querés usar el emulador de un tercero para este juego (necesita estar instalado)?</value>
+  </data>
   <data name="NewGamesUnsorted">
     <value>Los nuevos juegos se moverán a la carpeta "Sin ordenar".</value>
   </data>
@@ -362,7 +371,7 @@
     <value>¿Estás seguro que querés quitar todos los rastros de hakchi2 y volver tu NES/SNES Classic Edition a su estado original?</value>
   </data>
   <data name="UninstallQ2">
-    <value>Listo. Esperá hasta que la luz indicadora se apague. También necesitás flashear el kernel original. ¿Querés flashearlo ahora?</value>
+    <value>Esperá hasta que la luz indicadora se apague. También necesitás flashear el kernel original. ¿Querés flashearlo ahora?</value>
   </data>
   <data name="Uninstalling">
     <value>Desinstalando…</value>
@@ -409,10 +418,19 @@
   <data name="YesForAll">
     <value>"Sí" a todo</value>
   </data>
-  <data name="Cover">
-    <value>Box art</value>
+  <data name="FlashNandCQ">
+    <value>Do you want to flash NAND-C partition image? It will replace all user data.</value>
   </data>
-  <data name="DownloadCoverQ">
-    <value>Do you want to try to download box art for "{0}"?</value>
+  <data name="FlashingNand">
+    <value>Flashing NAND memory...</value>
+  </data>
+  <data name="NandFlashed">
+    <value>NAND memory flashed.</value>
+  </data>
+  <data name="NotRecommended">
+    <value>not recommended</value>
+  </data>
+  <data name="TooManyPerFolder">
+    <value>Warning! It's not recommended to store so many games per folder.</value>
   </data>
 </root>

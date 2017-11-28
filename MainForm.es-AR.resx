@@ -136,6 +136,12 @@
   <data name="dumpNANDBToolStripMenuItem.Text">
     <value>Volcar partición decifrada NAND-B</value>
   </data>
+  <data name="dumpNANDCPartitionToolStripMenuItem.Text">
+    <value>Volcar partición decifrada NAND-C</value>
+  </data>
+  <data name="dumpNANDCPartitionToolStripMenuItem.Title">
+    <value>Seleccionar nombre de archivo del volcado</value>
+  </data>
   <data name="dumpTheWholeNANDToolStripMenuItem.Text">
     <value>Volcar toda la flash NAND</value>
   </data>
@@ -155,7 +161,7 @@
     <value>&amp;Archivo</value>
   </data>
   <data name="flashCustomKernelToolStripMenuItem.Text">
-    <value>Flashear el kernel personalizado</value>
+    <value>Flashear el custom kernel</value>
   </data>
   <data name="flashOriginalKernelToolStripMenuItem.Text">
     <value>Flashear el kernel original</value>
@@ -324,5 +330,20 @@
   </data>
   <data name="useXYOnClassicControllerAsAutofireABToolStripMenuItem.Text">
     <value>Usar los botones "X"/"Y" en el Classic Controller como disparo automático de "A"/"B"</value>
+  </data>
+  <data name="famicomMiniToolStripMenuItem.Text">
+    <value>Famicom (Japan)</value>
+  </data>
+  <data name="flashNANDCPartitionToolStripMenuItem.Text">
+    <value>Flash NAND-C partition (experts only!)</value>
+  </data>
+  <data name="nESMiniToolStripMenuItem.Text">
+    <value>NES (USA/Europe)</value>
+  </data>
+  <data name="sNESMiniToolStripMenuItem.Text">
+    <value>SNES (USA/Europe)</value>
+  </data>
+  <data name="superFamicomMiniToolStripMenuItem.Text">
+    <value>Super Famicom (Japan)</value>
   </data>
 </root>

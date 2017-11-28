@@ -21,6 +21,7 @@ namespace com.clusterrr.hakchi_gui
         public static Image DefaultCover = Resources.blank_app;
         public static Form ParentForm;
         public static bool? NeedPatch;
+        public static bool? Need3rdPartyEmulator;
         public static bool? NeedAutoDownloadCover;
 
         public static string GamesDirectory
@@ -64,6 +65,20 @@ namespace com.clusterrr.hakchi_gui
         public virtual string GoogleSuffix
         {
             get { return "game"; }
+        }
+
+
+        public const string GameGenieFileName = "gamegenie.txt";
+        public string GameGeniePath { private set; get; }
+        private string gameGenie = "";
+        public string GameGenie
+        {
+            get { return gameGenie; }
+            set
+            {
+                if (gameGenie != value) hasUnsavedChanges = true;
+                gameGenie = value;
+            }
         }
 
         public readonly string GamePath;
@@ -245,7 +260,10 @@ namespace com.clusterrr.hakchi_gui
                 (app as ICloverAutofill).TryAutofill(crc32);
 
             if (ConfigIni.Compress)
+            {
                 app.Compress();
+                app.Save();
+            }
 
             return app;
         }
@@ -323,6 +341,11 @@ namespace com.clusterrr.hakchi_gui
                         break;
                 }
             }
+
+            GameGeniePath = Path.Combine(path, GameGenieFileName);
+            if (File.Exists(GameGeniePath))
+                gameGenie = File.ReadAllText(GameGeniePath);
+
             hasUnsavedChanges = false;
         }
 
@@ -331,6 +354,9 @@ namespace com.clusterrr.hakchi_gui
             if (!hasUnsavedChanges) return false;
             Debug.WriteLine(string.Format("Saving application \"{0}\" as {1}", Name, Code));
             Name = Regex.Replace(Name, @"'(\d)", @"`$1"); // Apostrophe + any number in game name crashes whole system. What. The. Fuck?
+            var sortRawTitle = Name.ToLower();
+            if (sortRawTitle.StartsWith("the "))
+                sortRawTitle = sortRawTitle.Substring(4); // Sorting without "THE"
             File.WriteAllText(ConfigPath, 
                 $"[Desktop Entry]\n" +
                 $"Type=Application\n" +
@@ -346,9 +372,15 @@ namespace com.clusterrr.hakchi_gui
                 $"Simultaneous={(Simultaneous ? 1 : 0)}\n" +
                 $"ReleaseDate={ReleaseDate ?? DefaultReleaseDate}\n" +
                 $"SaveCount={SaveCount}\n" +
-                $"SortRawTitle={(Name ?? Code).ToLower()}\n" +
+                $"SortRawTitle={sortRawTitle}\n" +
                 $"SortRawPublisher={(Publisher ?? DefaultPublisher).ToUpper()}\n" +
                 $"Copyright=hakchi2 ©2017 Alexey 'Cluster' Avdyukhin\n");
+
+            if (!string.IsNullOrEmpty(gameGenie))
+                File.WriteAllText(GameGeniePath, gameGenie);
+            else if (File.Exists(GameGeniePath))
+                File.Delete(GameGeniePath);
+
             hasUnsavedChanges = false;
             return true;
         }
@@ -388,14 +420,24 @@ namespace com.clusterrr.hakchi_gui
                 maxY = 204;
             }
             if ((double)image.Width / (double)image.Height > (double)maxX / (double)maxY)
-                outImage = new Bitmap(maxX, (int)((double)maxX * (double)image.Height / (double)image.Width));
+            {
+                int Y = (int)((double)maxX * (double)image.Height / (double)image.Width);
+                if (Y % 2 == 1)
+                    ++Y;
+                outImage = new Bitmap(maxX, Y);
+            }
             else
                 outImage = new Bitmap((int)(maxY * (double)image.Width / (double)image.Height), maxY);
 
             int maxXsmall = 40;
             int maxYsmall = 40;
             if ((double)image.Width / (double)image.Height > (double)maxXsmall / (double)maxYsmall)
-                outImageSmall = new Bitmap(maxXsmall, (int)((double)maxXsmall * (double)image.Height / (double)image.Width));
+            {
+                int Y = (int)((double)maxXsmall * (double)image.Height / (double)image.Width);
+                if (Y % 2 == 1)
+                    ++Y;
+                outImageSmall = new Bitmap(maxXsmall, Y);
+            }
             else
                 outImageSmall = new Bitmap((int)(maxYsmall * (double)image.Width / (double)image.Height), maxYsmall);
 
@@ -406,9 +448,16 @@ namespace com.clusterrr.hakchi_gui
             gr.Flush();
             outImage.Save(IconPath, ImageFormat.Png);
             gr = Graphics.FromImage(outImageSmall);
+
+            // Better resizing quality (more blur like original files)
+            gr.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
             gr.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
-            gr.DrawImage(outImage, new Rectangle(0, 0, outImageSmall.Width, outImageSmall.Height),
-                new Rectangle(0, 0, outImage.Width, outImage.Height), GraphicsUnit.Pixel);
+            // Fix first line and column alpha shit
+            using (ImageAttributes wrapMode = new ImageAttributes())
+            {
+                wrapMode.SetWrapMode(System.Drawing.Drawing2D.WrapMode.TileFlipXY);
+                gr.DrawImage(outImage, new Rectangle(0, 0, outImageSmall.Width, outImageSmall.Height), 0, 0, outImage.Width, outImage.Height, GraphicsUnit.Pixel, wrapMode);
+            }
             gr.Flush();
             outImageSmall.Save(SmallIconPath, ImageFormat.Png);
         }
@@ -462,10 +511,10 @@ namespace com.clusterrr.hakchi_gui
                     if (patches.Length > 0)
                         patch = patches[0];
                 }
-                var patchesPath = System.IO.Path.Combine(patchesDirectory, System.IO.Path.GetFileNameWithoutExtension(inputFileName) + ".ips");
+                var patchesPath = Path.Combine(patchesDirectory, Path.GetFileNameWithoutExtension(inputFileName) + ".ips");
                 if (File.Exists(patchesPath))
                     patch = patchesPath;
-                patchesPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(inputFileName), System.IO.Path.GetFileNameWithoutExtension(inputFileName) + ".ips");
+                patchesPath = Path.Combine(Path.GetDirectoryName(inputFileName), System.IO.Path.GetFileNameWithoutExtension(inputFileName) + ".ips");
                 if (File.Exists(patchesPath))
                     patch = patchesPath;
             }
@@ -625,15 +674,15 @@ namespace com.clusterrr.hakchi_gui
         {
             if (!Directory.Exists(GamePath)) return new string[0];
             var result = new List<string>();
-            var exec = Regex.Replace(Command, "['/\\\"]", " ") + " ";
+            var exec = Regex.Replace(Command, "[/\\\"]", " ") + " ";
             var files = Directory.GetFiles(GamePath, "*.*", SearchOption.TopDirectoryOnly);
             foreach (var file in files)
             {
-                if (System.IO.Path.GetExtension(file).ToLower() == ".7z")
+                if (Path.GetExtension(file).ToLower() == ".7z")
                     continue;
-                if (System.IO.Path.GetExtension(file).ToLower() == ".zip")
+                if (Path.GetExtension(file).ToLower() == ".zip")
                     continue;
-                if (exec.Contains(" " + System.IO.Path.GetFileName(file) + " "))
+                if (exec.Contains(" " + Path.GetFileName(file) + " "))
                     result.Add(file);
             }
             return result.ToArray();
@@ -643,7 +692,7 @@ namespace com.clusterrr.hakchi_gui
         {
             if (!Directory.Exists(GamePath)) return new string[0];
             var result = new List<string>();
-            var exec = Regex.Replace(Command, "['/\\\"]", " ") + " ";
+            var exec = Regex.Replace(Command, "[/\\\"]", " ") + " ";
             var files = Directory.GetFiles(GamePath, "*.7z", SearchOption.TopDirectoryOnly);
             foreach (var file in files)
             {

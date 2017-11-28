@@ -89,7 +89,7 @@
     <value>Gefeliciteerd!</value>
   </data>
   <data name="Cover">
-    <value>Verpakking</value>
+    <value>Verpakkingsafbeelding</value>
   </data>
   <data name="CustomKernel">
     <value>Aangepaste kernel</value>
@@ -170,7 +170,13 @@
     <value>Extra opdracht regel commando's</value>
   </data>
   <data name="FirstRun">
-    <value>Hallo! Ik vind het fijn dat je Hakchi2 gebruikt. Het werkt simpel: Klik gewoon op “Meer spellen toevoegen”, selecteer wat ROMs, druk op ”Synchroniseren” en volg de instructies. Veel plezier!</value>
+    <value>Hallo! Ik vind het fijn dat je Hakchi2 gebruikt. Het werkt heel simpel: Klik gewoon op “Meer spellen toevoegen”, selecteer wat ROMs, druk op ”Synchroniseren” en volg de instructies. Veel plezier!</value>
+  </data>
+  <data name="FlashNandCQ">
+    <value>Wil je de NAND-C partitie flashen? Al je data zal overschreven worden.</value>
+  </data>
+  <data name="FlashingNand">
+    <value>Flashing NAND geheugen...</value>
   </data>
   <data name="FlasingCustom">
     <value>De aangepaste kernel aan het flashen...</value>
@@ -272,7 +278,7 @@
     <value>HOME Menu</value>
   </data>
   <data name="MapperNotSupported">
-    <value>Sorry, “{0}” gebruikt mapper #{1} maar die wordt niet ondersteund door NES/SNES Mini en dit spel zal waarschijnlijk niet werken met de standaard emulator. Maar wellicht wel als andere emulator modules zijn geinstalleerd. Wil je het toch proberen?</value>
+    <value>Sorry, “{0}” gebruikt mapper #{1} maar die wordt niet ondersteund door NES Mini en dit spel zal waarschijnlijk niet werken met de standaard emulator. Maar wellicht wel als andere emulator modules zijn geinstalleerd. Wil je het toch proberen?</value>
   </data>
   <data name="Membooting">
     <value>Kernel aan het starten vanaf RAM...</value>
@@ -285,6 +291,12 @@
   </data>
   <data name="NandDumped">
     <value>NAND geheugen succesvol gedumpt.</value>
+  </data>
+  <data name="NandFlashed">
+    <value>NAND geheugen flashed.</value>
+  </data>
+  <data name="Need3rdPartyEmulator">
+    <value>Oeps, het lijkt erop dat "{0}" niet goed gaat werken met de originele emulator. Wil je een andere emulator gebruiken voor dit spel (het moet wel geïnstalleerd worden)?</value>
   </data>
   <data name="NewGamesUnsorted">
     <value>Nieuwe spellen worden verplaatst naar de “Ongesorteerd” map.</value>
@@ -312,6 +324,9 @@
   </data>
   <data name="NotFound">
     <value>Niet gevonden:</value>
+  </data>
+  <data name="NotRecommended">
+    <value>niet aanbevolen</value>
   </data>
   <data name="OriginalKernelQ">
     <value>Wil je de originele kernel flashen?</value>
@@ -361,6 +376,9 @@
   <data name="SizeOfSaves">
     <value>De grootte van de geselecteerde onderbrekingspunten:</value>
   </data>
+  <data name="TooManyPerFolder">
+    <value>Waarschuwing! Het is niet aanbevolen om zoveel spellen in 1 map te hebben.</value>
+  </data>
   <data name="UninstallFactoryNote">
     <value>Vergeet niet om een factory reset te doen als je alle Suspend Points wilt verwijderen.</value>
   </data>
@@ -392,7 +410,7 @@
     <value>Kernel aan het uploaden...</value>
   </data>
   <data name="UploadingOriginalGames">
-    <value>Verwerken van originele spellen...</value>
+    <value>Verwerken van de originele spellen...</value>
   </data>
   <data name="VerifyFailed">
     <value>Controle niet gelukt :O Dit is echt niet goed.</value>
